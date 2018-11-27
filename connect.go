@@ -172,6 +172,43 @@ func (this *Connection) Query(result interface{}, sql string, objs ...interface{
 	return false
 }
 
+func (this *Connection) Insert(obj interface{}) (id int64, affect int64, err error) {
+	sql, args, err := GetInsertSql(obj)
+	if err != nil {
+		return 0, 0, err
+	}
+	log.Println(sql)
+	return this.ExeSql(sql, args...)
+}
+
+func (this *Connection) Find(obj interface{}, col ...string) bool {
+	sql, args, err := CreateQuerySql(obj, col...)
+	if err != nil {
+		return false
+	}
+	log.Println(sql)
+	return this.Query(obj, sql, args...)
+
+}
+
+func (this *Connection) Update(obj interface{}, col ...string) (id int64, affect int64, err error) {
+	sql, args, err := CreateUpdateSql(obj, col...)
+	if err != nil {
+		return 0, 0, err
+	}
+	log.Println(sql)
+	return this.ExeSql(sql, args...)
+}
+
+func (this *Connection) Delete(obj interface{}, col ...string) (id int64, affect int64, err error) {
+	sql, args, err := CreateDeleteSql(obj, col...)
+	if err != nil {
+		return 0, 0, err
+	}
+	log.Println(sql)
+	return this.ExeSql(sql, args...)
+}
+
 //mysql的分页sql生成
 func buildMySqlLimitSql(page Page) string {
 	if page.Index < 1 {
