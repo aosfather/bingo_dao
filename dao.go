@@ -2,7 +2,7 @@ package bingo_dao
 
 import (
 	"fmt"
-	"github.com/aosfather/bingo/utils"
+	utils "github.com/aosfather/bingo_utils"
 )
 
 /**

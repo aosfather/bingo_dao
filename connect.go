@@ -3,7 +3,7 @@ package bingo_dao
 import (
 	"database/sql"
 	"fmt"
-	"github.com/aosfather/bingo/utils"
+	utils "github.com/aosfather/bingo_utils"
 	"log"
 )
 

@@ -19,7 +19,7 @@ SQL生成模板
 package bingo_dao
 
 import (
-	"github.com/aosfather/bingo/utils"
+	utils "github.com/aosfather/bingo_utils"
 	"reflect"
 	"strings"
 )
