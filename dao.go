@@ -8,6 +8,8 @@ import (
 /**
   DAO 面向结构进行自动sql生成
 */
+const _maxsize = 10000 //默认分页中最大条数
+
 //基础数据操作对象
 type BaseDao struct {
 	ds *DataSource
@@ -168,8 +170,6 @@ func (this *BaseDao) Delete(obj utils.Object, cols ...string) (int64, error) {
 
 	return 0, fmt.Errorf("session is nil")
 }
-
-const _maxsize = 10000
 
 func (this *BaseDao) QueryAll(obj utils.Object, cols ...string) []interface{} {
 
