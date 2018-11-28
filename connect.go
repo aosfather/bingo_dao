@@ -11,9 +11,10 @@ import (
   数据库 连接包装
 */
 type Connection struct {
-	tx   *sql.Tx
-	db   *sql.DB
-	isTx bool //是否开启了事务
+	tx       *sql.Tx
+	db       *sql.DB
+	isTx     bool //是否开启了事务
+	template *SqlTemplate
 }
 
 func (this *Connection) Begin() {
@@ -45,7 +46,7 @@ func (this *Connection) Rollback() {
 
 func (this *Connection) prepare(sql string) (*sql.Stmt, error) {
 	if this.isTx {
-		log.Println("tx:%s", this.tx)
+		log.Println("tx", this.tx)
 		return this.tx.Prepare(sql)
 	} else if this.db != nil {
 		return this.db.Prepare(sql)
@@ -173,7 +174,7 @@ func (this *Connection) Query(result interface{}, sql string, objs ...interface{
 }
 
 func (this *Connection) Insert(obj interface{}) (id int64, affect int64, err error) {
-	sql, args, err := GetInsertSql(obj)
+	sql, args, err := this.template.GetInsertSql(obj)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -182,7 +183,7 @@ func (this *Connection) Insert(obj interface{}) (id int64, affect int64, err err
 }
 
 func (this *Connection) Find(obj interface{}, col ...string) bool {
-	sql, args, err := CreateQuerySql(obj, col...)
+	sql, args, err := this.template.CreateQuerySql(obj, col...)
 	if err != nil {
 		return false
 	}
@@ -192,7 +193,7 @@ func (this *Connection) Find(obj interface{}, col ...string) bool {
 }
 
 func (this *Connection) Update(obj interface{}, col ...string) (id int64, affect int64, err error) {
-	sql, args, err := CreateUpdateSql(obj, col...)
+	sql, args, err := this.template.CreateUpdateSql(obj, col...)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -201,7 +202,7 @@ func (this *Connection) Update(obj interface{}, col ...string) (id int64, affect
 }
 
 func (this *Connection) Delete(obj interface{}, col ...string) (id int64, affect int64, err error) {
-	sql, args, err := CreateDeleteSql(obj, col...)
+	sql, args, err := this.template.CreateDeleteSql(obj, col...)
 	if err != nil {
 		return 0, 0, err
 	}

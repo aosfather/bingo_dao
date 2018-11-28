@@ -203,7 +203,7 @@ func (this *BaseDao) Query(obj utils.Object, page Page, cols ...string) []interf
 	session := this.ds.GetConnection()
 	if session != nil {
 		defer session.Close()
-		theSql, args, err := CreateQuerySql(obj, cols...)
+		theSql, args, err := this.ds.sqlTemplate.CreateQuerySql(obj, cols...)
 		if err == nil {
 			return session.QueryByPage(obj, page, theSql, args...)
 		}

@@ -19,6 +19,7 @@ SQL生成模板
 package bingo_dao
 
 import (
+	"fmt"
 	utils "github.com/aosfather/bingo_utils"
 	"reflect"
 	"strings"
@@ -33,11 +34,15 @@ func init() {
 	table_insert_cache = make(map[string]string)
 }
 
-func SetTablePreFix(pfix string) {
-	table_prefix = pfix
+type SqlTemplate struct {
+	table_prefix string
 }
 
-func GetInsertSql(target interface{}) (string, []interface{}, error) {
+func (this *SqlTemplate) SetTablePrefix(prefix string) {
+	this.table_prefix = prefix
+}
+
+func (this *SqlTemplate) GetInsertSql(target interface{}) (string, []interface{}, error) {
 	objT, _, err := utils.GetStructTypeValue(target)
 	if err != nil {
 		return "", nil, err
@@ -46,7 +51,7 @@ func GetInsertSql(target interface{}) (string, []interface{}, error) {
 	sql := table_insert_cache[key]
 
 	if sql == "" {
-		sql, args, err := CreateInserSql(target)
+		sql, args, err := this.CreateInserSql(target)
 		if err != nil {
 			return "", nil, err
 		}
@@ -55,14 +60,14 @@ func GetInsertSql(target interface{}) (string, []interface{}, error) {
 
 	}
 
-	args, err := structValueToArray(target)
+	args, err := this.structValueToArray(target)
 	if err != nil {
 		return "", nil, err
 	}
 	return sql, args, nil
 }
 
-func StructValueToCustomArray(target interface{}, col ...string) ([]interface{}, error) {
+func (this *SqlTemplate) StructValueToCustomArray(target interface{}, col ...string) ([]interface{}, error) {
 	_, objV, err := utils.GetStructTypeValue(target)
 	if err != nil {
 		return nil, err
@@ -79,7 +84,8 @@ func StructValueToCustomArray(target interface{}, col ...string) ([]interface{},
 	}
 	return args, nil
 }
-func structValueToArray(target interface{}) ([]interface{}, error) {
+
+func (this *SqlTemplate) structValueToArray(target interface{}) ([]interface{}, error) {
 	objT, objV, err := utils.GetStructTypeValue(target)
 	if err != nil {
 		return nil, err
@@ -94,7 +100,7 @@ func structValueToArray(target interface{}) ([]interface{}, error) {
 		}
 
 		//对于自增长和明确忽略的字段不做转换
-		if isFieldIgnore(f) {
+		if this.isFieldIgnore(f) {
 			continue
 		}
 
@@ -105,16 +111,94 @@ func structValueToArray(target interface{}) ([]interface{}, error) {
 
 }
 
-func CreateInserSql(target interface{}) (string, []interface{}, error) {
+func (this *SqlTemplate) CreateQuerySql(target interface{}, col ...string) (string, []interface{}, error) {
 	objT, objV, err := utils.GetStructTypeValue(target)
 	if err != nil {
 		return "", nil, err
 	}
 	var tagTableName string
-	var sqlFields string
-	var sqlValues string
-	args := make([]interface{}, 0, 0)
-	fieldIndex := 0
+	var sqlFields, sqlwheres []string
+	var argsWhere, args []interface{}
+
+	for i := 0; i < objT.NumField(); i++ {
+		f := objT.Field(i)
+		vf := objV.Field(i)
+		if !vf.CanInterface() {
+			continue
+		}
+
+		//处理内嵌结构
+		if f.Anonymous {
+			this.addEmberStruct(f, vf, "", &sqlFields, &sqlwheres, &args, &argsWhere)
+			continue
+		}
+
+		tagTable := f.Tag.Get("Table")
+		if tagTable != "" {
+			tagTableName = tagTable
+		}
+
+		this.addFieldAndWhere(f, vf, "", &sqlFields, &sqlwheres, &args, &argsWhere)
+
+	}
+
+	//如果没有指定表名就使用默认规则
+	if tagTableName == "" {
+		tagTableName = this.getDefaultTableName(objT)
+	}
+
+	return "select " + strings.Join(sqlFields, ",") + " from " + tagTableName + " where " + strings.Join(sqlwheres, ","), argsWhere, nil
+}
+
+func (this *SqlTemplate) CreateDeleteSql(target interface{}, col ...string) (string, []interface{}, error) {
+	objT, objV, err := utils.GetStructTypeValue(target)
+	if err != nil {
+		return "", nil, err
+	}
+	var tagTableName string
+	var sqlFields, sqlwheres []string
+	var argsWhere, args []interface{}
+
+	for i := 0; i < objT.NumField(); i++ {
+		f := objT.Field(i)
+		vf := objV.Field(i)
+		if !vf.CanInterface() {
+			continue
+		}
+
+		//处理内嵌结构
+		if f.Anonymous {
+			this.addEmberStruct(f, vf, "", &sqlFields, &sqlwheres, &args, &argsWhere)
+			continue
+		}
+
+		tagTable := f.Tag.Get("Table")
+		if tagTable != "" {
+			tagTableName = tagTable
+		}
+
+		this.addFieldAndWhere(f, vf, "", &sqlFields, &sqlwheres, &args, &argsWhere)
+
+	}
+
+	//如果没有指定表名就使用默认规则
+	if tagTableName == "" {
+		tagTableName = this.getDefaultTableName(objT)
+	}
+
+	return "delete from " + tagTableName + " where " + strings.Join(sqlwheres, " and "), argsWhere, nil
+}
+
+func (this *SqlTemplate) CreateInserSql(target interface{}) (string, []interface{}, error) {
+	objT, objV, err := utils.GetStructTypeValue(target)
+	if err != nil {
+		return "", nil, err
+	}
+	var tagTableName string
+	var sqlFields []string
+	var sqlValues []string
+	var args []interface{}
+
 	for i := 0; i < objT.NumField(); i++ {
 		f := objT.Field(i)
 		vf := objV.Field(i)
@@ -126,7 +210,6 @@ func CreateInserSql(target interface{}) (string, []interface{}, error) {
 			tagTableName = tagTable
 		}
 
-		colName := utils.GetColName(f)
 		//对于自增长和明确忽略的字段不做转换
 		tagOption := f.Tag.Get("Option")
 		if tagOption != "" {
@@ -135,231 +218,144 @@ func CreateInserSql(target interface{}) (string, []interface{}, error) {
 			}
 		}
 
-		args = append(args, vf.Interface())
-		if fieldIndex > 0 {
-			sqlFields += ","
-			sqlValues += ","
-		}
-
-		sqlFields += colName
-		sqlValues += "?"
-		fieldIndex++
+		this.addFields(f, vf, &sqlFields, &sqlValues, &args)
 
 	}
 
 	//如果没有指定表名就使用默认规则
 	if tagTableName == "" {
-		tagTableName = table_prefix + utils.BingoString(objT.Name()).SnakeString()
+		tagTableName = this.getDefaultTableName(objT)
 	}
 
-	return "Insert into " + tagTableName + "(" + sqlFields + ") Values(" + sqlValues + ")", args, nil
+	return "Insert into " + tagTableName + "(" + strings.Join(sqlFields, ",") + ") Values(" + strings.Join(sqlValues, ",") + ")", args, nil
 }
-func CreateDeleteSql(target interface{}, col ...string) (string, []interface{}, error) {
-	//类似于查询只是把查询变成了删除
+
+func (this *SqlTemplate) CreateUpdateSql(target interface{}, col ...string) (string, []interface{}, error) {
 	objT, objV, err := utils.GetStructTypeValue(target)
 	if err != nil {
 		return "", nil, err
 	}
 	var tagTableName string
-	var sqlwheres string
-	argsWhere := make([]interface{}, 0, 0)
-	whereFields := 0
-	if len(col) != 0 {
-		for _, fieldName := range col {
-			f, b := objT.FieldByName(fieldName)
-			vf := objV.FieldByName(fieldName)
-			if !b || !vf.CanInterface() {
-				continue
-			}
-			colName := utils.GetColName(f)
-			if whereFields > 0 {
-				sqlwheres += " and "
-			}
-			sqlwheres += colName + "=?"
-			argsWhere = append(argsWhere, vf.Interface())
-			whereFields++
-		}
-	}
+	var sqlwheres, sqlFields []string
 
-	for i := 0; i < objT.NumField(); i++ {
-		f := objT.Field(i)
-		vf := objV.Field(i)
-		if !vf.CanInterface() {
-			continue
-		}
-		tagTable := f.Tag.Get("Table")
-		if tagTable != "" {
-			tagTableName = tagTable
-		}
-		if len(col) == 0 {
-			colName := utils.GetColName(f)
-			//对于标识为pk的字段做为条件
-			tagOption := f.Tag.Get("Option")
-			if tagOption != "" {
-				if strings.Index(tagOption, "pk") != -1 {
-					//where的处理
-					if whereFields > 0 {
-						sqlwheres += " and "
-					}
-					sqlwheres += colName + " =?"
-					argsWhere = append(argsWhere, vf.Interface())
-					whereFields++
-				}
-			}
-		}
-
-	}
-
-	//如果没有指定表名就使用默认规则
-	if tagTableName == "" {
-		tagTableName = table_prefix + utils.BingoString(objT.Name()).SnakeString()
-	}
-
-	return "delete from " + tagTableName + " where " + sqlwheres, argsWhere, nil
-
-}
-
-func CreateUpdateSql(target interface{}, col ...string) (string, []interface{}, error) {
-	objT, objV, err := utils.GetStructTypeValue(target)
-	if err != nil {
-		return "", nil, err
-	}
-	var tagTableName string
-	var sqlFields string
-	var sqlwheres string
 	args := make([]interface{}, 0, 0)
 	argsWhere := make([]interface{}, 0, 0)
-	fieldIndex := 0
-	whereFields := 0
-	if len(col) != 0 {
-		for _, fieldName := range col {
-			f, b := objT.FieldByName(fieldName)
-			vf := objV.FieldByName(fieldName)
-			if !b || !vf.CanInterface() {
-				continue
-			}
-			colName := utils.GetColName(f)
-			if fieldIndex > 0 {
-				sqlFields += ","
-			}
-			sqlFields += colName + "=?"
-			args = append(args, vf.Interface())
-			fieldIndex++
-		}
-	}
 
+	//遍历字段
 	for i := 0; i < objT.NumField(); i++ {
 		f := objT.Field(i)
 		vf := objV.Field(i)
 		if !vf.CanInterface() {
 			continue
 		}
+
+		//处理内嵌结构
+		if f.Anonymous {
+			this.addEmberStruct(f, vf, "=?", &sqlFields, &sqlwheres, &args, &argsWhere)
+			continue
+		}
+
+		//获取指明的table名称
 		tagTable := f.Tag.Get("Table")
 		if tagTable != "" {
 			tagTableName = tagTable
 		}
 
-		colName := utils.GetColName(f)
-		if len(col) == 0 {
-
-			if fieldIndex > 0 {
-				sqlFields += ","
-			}
-			sqlFields += colName + "=?"
-			args = append(args, vf.Interface())
-			fieldIndex++
-		}
-
-		//对于自增长和明确忽略的字段不做转换
-		tagOption := f.Tag.Get("Option")
-		if tagOption != "" {
-			if strings.Index(tagOption, "pk") != -1 {
-				//where的处理
-				if whereFields > 0 {
-					sqlwheres += " and "
-				}
-				sqlwheres += colName + " =?"
-				whereFields++
-				argsWhere = append(argsWhere, vf.Interface())
-			}
-		}
+		this.addFieldAndWhere(f, vf, "=?", &sqlFields, &sqlwheres, &args, &argsWhere)
 
 	}
 
 	//如果没有指定表名就使用默认规则
 	if tagTableName == "" {
-		tagTableName = table_prefix + utils.BingoString(objT.Name()).SnakeString()
+		tagTableName = this.getDefaultTableName(objT)
 	}
 
 	args = append(args, argsWhere...)
+	return "update " + tagTableName + " set " + strings.Join(sqlFields, ",") + " where " + strings.Join(sqlwheres, " and "), args, nil
 
-	return "update " + tagTableName + " set " + sqlFields + " where " + sqlwheres, args, nil
 }
 
-func CreateQuerySql(target interface{}, col ...string) (string, []interface{}, error) {
-	objT, objV, err := utils.GetStructTypeValue(target)
-	if err != nil {
-		return "", nil, err
-	}
-	var tagTableName string
-	var sqlwheres string
-	argsWhere := make([]interface{}, 0, 0)
-	whereFields := 0
-	if len(col) != 0 {
-		for _, fieldName := range col {
-			f, b := objT.FieldByName(fieldName)
-			vf := objV.FieldByName(fieldName)
-			if !b || !vf.CanInterface() {
+func (this *SqlTemplate) addEmberStruct(f reflect.StructField, v reflect.Value, fieldfix string, fields, wheres *[]string, args, argsWhere *[]interface{}) {
+	if f.Anonymous {
+		ft := f.Type
+		for i := 0; i < ft.NumField(); i++ {
+			ff := ft.Field(i)
+			vf := v.Field(i)
+			if !vf.CanInterface() {
 				continue
 			}
-			colName := utils.GetColName(f)
-			if whereFields > 0 {
-				sqlwheres += " and "
+			//处理内嵌结构
+			if ff.Anonymous {
+				this.addEmberStruct(ff, vf, fieldfix, fields, wheres, args, argsWhere)
+				continue
 			}
-			sqlwheres += colName + "=?"
-			argsWhere = append(argsWhere, vf.Interface())
-			whereFields++
+
+			this.addFieldAndWhere(ff, vf, fieldfix, fields, wheres, args, argsWhere)
 		}
 	}
-
-	for i := 0; i < objT.NumField(); i++ {
-		f := objT.Field(i)
-		vf := objV.Field(i)
-		if !vf.CanInterface() {
-			continue
-		}
-		tagTable := f.Tag.Get("Table")
-		if tagTable != "" {
-			tagTableName = tagTable
-		}
-		if len(col) == 0 {
-			colName := utils.GetColName(f)
-			//对于标识为pk的字段做为条件
-			tagOption := f.Tag.Get("Option")
-			if tagOption != "" {
-				if strings.Index(tagOption, "pk") != -1 {
-					//where的处理
-					if whereFields > 0 {
-						sqlwheres += " and "
-					}
-					sqlwheres += colName + " =?"
-					argsWhere = append(argsWhere, vf.Interface())
-					whereFields++
-				}
-			}
-		}
-
-	}
-
-	//如果没有指定表名就使用默认规则
-	if tagTableName == "" {
-		tagTableName = table_prefix + utils.BingoString(objT.Name()).SnakeString()
-	}
-
-	return "select * from " + tagTableName + " where " + sqlwheres, argsWhere, nil
 }
 
-func isFieldIgnore(field reflect.StructField) bool {
+func (this *SqlTemplate) addFields(f reflect.StructField, v reflect.Value, fields, values *[]string, args *[]interface{}) {
+	if f.Anonymous {
+		fmt.Println("em")
+		ft := f.Type
+		for i := 0; i < ft.NumField(); i++ {
+			ff := ft.Field(i)
+			vf := v.Field(i)
+			if !vf.CanInterface() {
+				continue
+			}
+			//处理内嵌结构
+			if ff.Anonymous {
+				this.addFields(ff, vf, fields, values, args)
+				continue
+			}
+
+			this.addField(ff, vf, fields, values, args)
+		}
+	} else {
+		this.addField(f, v, fields, values, args)
+	}
+}
+
+func (this *SqlTemplate) addField(f reflect.StructField, v reflect.Value, fields, values *[]string, args *[]interface{}) {
+	colName := GetColName(f)
+	fmt.Println(colName)
+	fmt.Println(v.Interface())
+	*args = append(*args, v.Interface())
+	*fields = append(*fields, colName)
+	*values = append(*values, "?")
+}
+
+func (this *SqlTemplate) addFieldAndWhere(f reflect.StructField, v reflect.Value, fieldfix string, fields, wheres *[]string, args, argsWhere *[]interface{}) {
+	colName := utils.GetColName(f)
+	//
+	*fields = append(*fields, colName+fieldfix)
+	*args = append(*args, v.Interface())
+
+	//对于自增长和明确忽略的字段不做转换
+	tagOption := f.Tag.Get("Option")
+	if tagOption != "" {
+		if strings.Index(tagOption, "pk") != -1 {
+			//where的处理
+			*wheres = append(*wheres, colName+" =?")
+			*argsWhere = append(*argsWhere, v.Interface())
+		}
+	}
+
+}
+
+//获取默认的表名
+func (this *SqlTemplate) getDefaultTableName(t reflect.Type) string {
+	if this.table_prefix == "" {
+		this.table_prefix = table_prefix
+	}
+
+	return this.table_prefix + utils.BingoString(t.Name()).SnakeString()
+}
+
+//字段是否忽略
+func (this *SqlTemplate) isFieldIgnore(field reflect.StructField) bool {
 	//对于自增长和明确忽略的字段不做转换
 	tagOption := field.Tag.Get("Option")
 	if tagOption != "" {
@@ -368,4 +364,17 @@ func isFieldIgnore(field reflect.StructField) bool {
 		}
 	}
 	return false
+}
+
+const (
+	_TAG_FIELD = "Field"
+)
+
+func GetColName(field reflect.StructField) string {
+	colName := field.Tag.Get(_TAG_FIELD)
+	if colName == "" {
+		colName = utils.BingoString(field.Name).SnakeString()
+	}
+
+	return colName
 }
