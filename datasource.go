@@ -2,8 +2,19 @@ package bingo_dao
 
 import (
 	"database/sql"
+	utils "github.com/aosfather/bingo_utils"
 	"log"
 )
+
+var logger utils.Log
+
+func debug(msg string, obj ...interface{}) {
+	if logger != nil {
+		logger.Debug(msg, obj...)
+	} else {
+		log.Printf(msg, obj...)
+	}
+}
 
 /**
   data source
@@ -34,7 +45,7 @@ func (this *DataSource) Init() {
 		if err == nil {
 			this.pool.Ping()
 		} else {
-			log.Printf("%v", err)
+			debug("%v", err)
 		}
 
 	}

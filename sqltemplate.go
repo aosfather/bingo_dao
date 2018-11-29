@@ -25,8 +25,12 @@ import (
 	"strings"
 )
 
+const (
+	_TAG_FIELD   = "Field"
+	table_prefix = "t_"
+)
+
 var (
-	table_prefix       string = "t_"
 	table_insert_cache map[string]string
 )
 
@@ -365,10 +369,6 @@ func (this *SqlTemplate) isFieldIgnore(field reflect.StructField) bool {
 	}
 	return false
 }
-
-const (
-	_TAG_FIELD = "Field"
-)
 
 func GetColName(field reflect.StructField) string {
 	colName := field.Tag.Get(_TAG_FIELD)
