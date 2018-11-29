@@ -8,6 +8,10 @@ import (
 
 var logger utils.Log
 
+func SetLogger(l utils.Log) {
+	logger = l
+}
+
 func debug(msg string, obj ...interface{}) {
 	if logger != nil {
 		logger.Debug(msg, obj...)
