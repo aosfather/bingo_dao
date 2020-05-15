@@ -39,7 +39,7 @@ func (this *DictionaryValidator) Validate(value string, name string, dict string
 	catalog := this.dictionary[dict]
 	//轮询code看是否属于取值范围内的值
 	if catalog.Code != "" {
-		for _, v := range catalog.Values {
+		for _, v := range catalog.Items {
 			if v.Code == value {
 				return true
 			}

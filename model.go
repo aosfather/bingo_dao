@@ -1,6 +1,26 @@
 package bingo_dao
 
+import (
+	"fmt"
+)
+
 type BaseType byte
+
+func (this *BaseType) UnmarshalYAML(unmarshal func(v interface{}) error) error {
+	var text string
+	unmarshal(&text)
+	if text == "TEXT" {
+		*this = BT_TEXT
+	} else if text == "DICT" {
+		*this = BT_DICT
+	} else if text == "MONEY" {
+		*this = BT_MONEY
+	} else {
+		*this = 0
+		return fmt.Errorf("value is wrong! [ %s ]", text)
+	}
+	return nil
+}
 
 const (
 	BT_TEXT  BaseType = 1 //文本
@@ -17,6 +37,18 @@ type Domain struct {
 }
 
 type Validate func(value string, name string, option string) bool
+
+func (this *Validate) UnmarshalYAML(unmarshal func(v interface{}) error) error {
+	var text string
+	unmarshal(&text)
+	v, ok := validates[text]
+	if !ok {
+		return fmt.Errorf("not found validate[%s]", text)
+	}
+
+	*this = v
+	return nil
+}
 
 //数据类型
 type DataType struct {
@@ -44,23 +76,61 @@ func (this *DataType) validate(v string) bool {
 	return true
 }
 
+func (this *DataType) GetDataType() *DataType {
+	return this
+}
+
+type DT func() *DataType
+
+func (this *DT) UnmarshalYAML(unmarshal func(v interface{}) error) error {
+	var text string
+	unmarshal(&text)
+	v := types.GetType(text)
+	if v != nil {
+		*this = v.GetDataType
+	}
+
+	return nil
+}
+
 //数据元素
 type DataElement struct {
-	Type  *DataType //数据类型
-	Name  string    //名称
-	Field string    //字段名称
-	Short string    //短描述
-	Head  string    //表头描述
-	Media string    //中描述
-	Long  string    //长描述
+	Name  string //名称
+	Type  DT     //数据类型
+	Short string //短描述
+	Head  string //表头描述
+	Media string //中描述
+	Long  string //长描述
+}
+
+func (this *DataElement) GetDataElement() *DataElement {
+	return this
 }
 
 //数据结构
 type DataStruct struct {
-	Name     string
-	Label    string //描述
-	Type     string //数据结构类型
-	Elements []*DataElement
+	Name   string
+	Label  string //描述
+	Type   string //数据结构类型
+	Fields []Field
+}
+
+type Element func() *DataElement
+
+func (this *Element) UnmarshalYAML(unmarshal func(v interface{}) error) error {
+	var text string
+	unmarshal(&text)
+	v := types.GetElement(text)
+	if v != nil {
+		*this = v.GetDataElement
+	}
+
+	return nil
+}
+
+type Field struct {
+	Name    string
+	Element Element
 }
 
 //字典
@@ -71,6 +141,21 @@ type DictItem struct {
 	Long  string //长描述
 }
 type DictCatalog struct {
-	Code   string //名称
-	Values []DictItem
+	Code  string //名称
+	Items []DictItem
+}
+
+//表类型
+type Table struct {
+	DataStruct
+	Code   string
+	Pk     TableIndex
+	Indexs []TableIndex //
+}
+
+//索引
+type TableIndex struct {
+	Name   string
+	Type   string
+	Fields []string
 }
