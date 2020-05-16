@@ -2,6 +2,7 @@ package bingo_dao
 
 import (
 	"fmt"
+	"log"
 )
 
 type BaseType byte
@@ -50,6 +51,10 @@ func (this *Validate) UnmarshalYAML(unmarshal func(v interface{}) error) error {
 	return nil
 }
 
+/*
+Output Length：显示输出的长度；
+Convers. Routine：定义数据转换程序名；
+*/
 //数据类型
 type DataType struct {
 	Base       BaseType //基本类型
@@ -120,8 +125,10 @@ type Element func() *DataElement
 func (this *Element) UnmarshalYAML(unmarshal func(v interface{}) error) error {
 	var text string
 	unmarshal(&text)
+	log.Println(text)
 	v := types.GetElement(text)
 	if v != nil {
+
 		*this = v.GetDataElement
 	}
 
@@ -147,10 +154,13 @@ type DictCatalog struct {
 
 //表类型
 type Table struct {
-	DataStruct
+	Name   string
+	Label  string //描述
+	Type   string //数据结构类型
 	Code   string
 	Pk     TableIndex
 	Indexs []TableIndex //
+	Fields []Field
 }
 
 //索引

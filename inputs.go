@@ -37,7 +37,7 @@ func (this PolicyType) MarshalYAML() (interface{}, error) {
 }
 
 type Paramter struct {
-	Name   string      `yaml:"paramter"` //参数名称
-	Type   DataElement `yaml:"type"`     //参数类型
-	Policy PolicyType  `yaml:"policy"`
+	Name   string     `yaml:"paramter"` //参数名称
+	Type   Element    `yaml:"type"`     //参数类型
+	Policy PolicyType `yaml:"policy"`
 }

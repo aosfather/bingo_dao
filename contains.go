@@ -32,6 +32,12 @@ func (this *Types) AddType(t *DataType) {
 	}
 }
 
+func (this *Types) AddElement(t *DataElement) {
+	if _, ok := this.elements[t.Name]; !ok {
+		this.elements[t.Name] = t
+	}
+}
+
 var validates map[string]Validate = make(map[string]Validate)
 var types Types
 
