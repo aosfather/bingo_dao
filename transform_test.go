@@ -1,6 +1,9 @@
 package bingo_dao
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestConcatFileds_BuildTransform(t *testing.T) {
 	value := make(map[string]interface{})
@@ -67,4 +70,32 @@ func TestCaptionField_BuildTransform(t *testing.T) {
 
 	c3 := CaptionField{NewField: "New3", Field: "id", Type: CT_First}
 	t.Log(c3.BuildTransform()(value))
+}
+
+func TestPaddingField_BuildTransform(t *testing.T) {
+	value := make(map[string]interface{})
+	value["id"] = "123456"
+	c := PaddingField{NewField: "New", Field: "id", Style: PS_Left, Char: '0', Length: 10}
+	t.Log(c.BuildTransform()(value))
+	c1 := PaddingField{NewField: "New", Field: "id", Style: PS_Right, Char: '0', Length: 10}
+	t.Log(c1.BuildTransform()(value))
+}
+
+func TestRemoveField_BuildTransform(t *testing.T) {
+	value := make(map[string]interface{})
+	value["id"] = "1234"
+	value["j1"] = "abcdefghijk"
+	c := RemoveField{Fields: []string{"j1"}}
+	t.Log(c.BuildTransform()(value))
+}
+
+func TestCalculateField_BuildTransform(t *testing.T) {
+	value := make(map[string]interface{})
+	value["id"] = "1234"
+	value["j1"] = "abcdefghijk"
+	f := func(v ...interface{}) interface{} {
+		return fmt.Sprintf("%v", v)
+	}
+	c := CalculateField{NewField: "New", Fields: []string{"id", "j1"}, Function: f}
+	t.Log(c.BuildTransform()(value))
 }

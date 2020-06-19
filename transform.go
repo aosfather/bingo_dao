@@ -227,6 +227,9 @@ const (
 	CT_Lowcase UpperLowType = 2 //转小写
 )
 
+/**
+  7、字符串大小写
+*/
 type CaptionField struct {
 	singleComponse
 	NewField string
@@ -255,6 +258,103 @@ func (this *CaptionField) BuildTransform() TransformFunction {
 			}
 			input[this.NewField] = target
 		}
+		return input
+	}
+	return t
+}
+
+/*
+  8、padding 补齐
+
+*/
+type PaddingStyle byte
+
+const (
+	PS_None  PaddingStyle = 0 //不补齐
+	PS_Left  PaddingStyle = 1 //左补齐
+	PS_Right PaddingStyle = 2 //右补齐
+)
+
+type PaddingField struct {
+	singleComponse
+	NewField string
+	Field    string
+	Style    PaddingStyle
+	Char     rune
+	Length   int
+}
+
+func (this *PaddingField) BuildTransform() TransformFunction {
+	t := func(input Data) Data {
+		if v, ok := input[this.Field]; ok {
+			target := v.(string)
+			length := len(target)
+			if length < this.Length {
+				times := this.Length - length
+				switch this.Style {
+				case PS_None:
+				case PS_Left:
+					for i := 0; i < times; i++ {
+						target = string(this.Char) + target
+					}
+				case PS_Right:
+					for i := 0; i < times; i++ {
+						target = target + string(this.Char)
+					}
+
+				}
+			}
+
+			input[this.NewField] = target
+		}
+		return input
+	}
+	return t
+}
+
+/**
+  9、移除字段
+*/
+type RemoveField struct {
+	singleComponse
+	Fields []string
+}
+
+func (this *RemoveField) BuildTransform() TransformFunction {
+	t := func(input Data) Data {
+		for _, v := range this.Fields {
+			delete(input, v)
+		}
+		return input
+	}
+
+	return t
+}
+
+type CalculateFunction func(v ...interface{}) interface{}
+
+/**
+  10、函数计算
+  * 新字段
+  * 计算的函数
+  * 计算的字段
+  * 是否移除(临时)
+*/
+type CalculateField struct {
+	singleComponse
+	NewField string
+	Fields   []string
+	Function CalculateFunction
+}
+
+func (this *CalculateField) BuildTransform() TransformFunction {
+	t := func(input Data) Data {
+		var p []interface{}
+		for _, key := range this.Fields {
+			p = append(p, input[key])
+		}
+		result := this.Function(p...)
+		input[this.NewField] = result
 		return input
 	}
 	return t
