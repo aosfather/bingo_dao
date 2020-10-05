@@ -96,6 +96,7 @@ func (this *DT) UnmarshalYAML(unmarshal func(v interface{}) error) error {
 	}
 
 	return nil
+
 }
 
 //数据元素
@@ -108,6 +109,12 @@ type DataElement struct {
 	Long  string //长描述
 }
 
+func (this *DataElement) Validate(v string) bool {
+	if this.Type != nil {
+		return this.Type().validate(v)
+	}
+	return true
+}
 func (this *DataElement) GetDataElement() *DataElement {
 	return this
 }
